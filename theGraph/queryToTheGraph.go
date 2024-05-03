@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -133,13 +134,17 @@ func addRating(account []*model.Account) []*model.Account {
 		}
 		if borrowsLen > 0 && liquidateLen > 0 {
 			if borrowsLen > liquidateLen {
-				rating = (float64(liquidateLen) / float64(borrowsLen)) * 100
+				rating = (float64(borrowsLen) / float64(liquidateLen)) * 100
 				newRating := strconv.FormatFloat(rating/100*5, 'f', 2, 64)
+				if rating/100*5 > 5.0 {
+					acc.Raiting = "5"
+					return account
+				}
 				acc.Raiting = newRating
 				return account
 			} else if liquidateLen > borrowsLen {
-				rating = (float64(borrowsLen) / float64(liquidateLen)) * 100
-				newRating := strconv.FormatFloat(rating/100*5, 'f', 2, 64)
+				rating := float64(borrowsLen) / float64(liquidateLen) * 100
+				newRating := strconv.FormatFloat(math.Max(0.5, (1-rating/100)*5), 'f', 2, 64)
 				acc.Raiting = newRating
 				return account
 			}
