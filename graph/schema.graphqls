@@ -1,0 +1,67 @@
+# GraphQL schema example
+#
+# https://gqlgen.com/getting-started/
+
+# type JobListing{
+#    _id: ID!
+#    title: String!
+#    description: String!
+#    company: String!
+#    url: String!
+# }
+
+# type Query{
+#   jobs: [JobListing!]!
+#   job(id: ID!): JobListing!
+# }
+
+# type Mutation{
+#   createJobListing(input: CreateJobListingInput!): JobListing
+#   updateJobListing(id: ID!, input: UpdateJobListingInput!): JobListing
+#   deleteJobListing(id: ID!): DeleteJobResponse!
+# }
+
+# input CreateJobListingInput{
+#   title: String!
+#   description: String!
+#   company: String!
+#   url: String!
+# }
+
+# input UpdateJobListingInput{
+#   title: String!
+#   description: String!
+#   company: String!
+#   url: String!
+# }
+
+# type DeleteJobResponse{
+#   deleteJobId: String!
+# }
+scalar Bytes
+scalar BigDecimal
+
+type Account {
+  id: Bytes!
+  raiting: BigDecimal!
+  borrows: [Borrow!]!
+  liquidations: [Liquidate!]!
+}
+
+type Borrow {
+  amountUSD: BigDecimal!
+  account: Account!
+}
+
+type Liquidate {
+  amountUSD: BigDecimal!
+  liquidatee: Account!
+}
+
+input Account_Filter {
+  id: Bytes
+}
+
+type Query{
+  accounts(where: Account_Filter): [Account!]
+}
