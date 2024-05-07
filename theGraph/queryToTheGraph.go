@@ -18,37 +18,11 @@ const GRAPHURI = "https://gateway-arbitrum.network.thegraph.com/api/cfdf070cf997
 const GRAPHV2 = "https://gateway-arbitrum.network.thegraph.com/api/cfdf070cf997c79bcae014e7ab2bee7b/subgraphs/id/C2zniPn45RnLDGzVeGZCx2Sw3GXrbc9gL4ZfL8B8Em2j"
 
 func FetchFromTheGraph(where *model.AccountFilter) ([]*model.Account, error) {
-	url := GRAPHURI
-	method := "POST"
-	message := fmt.Sprintf("{\"query\":\"query MyQuery ($id: Bytes!) {\\r\\n  accounts(where: {id: $id}) {\\r\\n    borrows {\\r\\n      amountUSD\\r\\n    }\\r\\n    liquidations {\\r\\n      amountUSD\\r\\n    }\\r\\n  }\\r\\n}\",\"variables\":{\"id\":\"%v\"}}", *where.ID)
-
-	payload := strings.NewReader(message)
-	client := &http.Client{}
-	req, err := http.NewRequest(method, url, payload)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Cookie", "__cf_bm=N29JxLLfRWmIoOoW7ZP6k4fshmrNrYkf.hnLRFzNnlU-1714527200-1.0.1.1-KxMFJ6deDWLZwLZT3IudKsIdICFQc0abi1liVUndBoCy.MsVp6f4m5ja_R86.xc__5famndB85LEMkH1BcFN1g")
-
-	res, err := client.Do(req)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		fmt.Println(body)
-		log.Fatal(err)
-	}
-
-	jsonData, _ := parseJson(body, string(*where.ID))
+	dataFromV3, _ := fetchFromV3(where)
 	dataFromV2, _ := fetchFromV2(where)
-	jsonData.Borrows = append(jsonData.Borrows, dataFromV2.Borrows...)
-	jsonData.Liquidations = append(jsonData.Liquidations, dataFromV2.Liquidations...)
-	newData := addRating([]*model.Account{jsonData})
+	dataFromV3.Borrows = append(dataFromV3.Borrows, dataFromV2.Borrows...)
+	dataFromV3.Liquidations = append(dataFromV3.Liquidations, dataFromV2.Liquidations...)
+	newData := addRating([]*model.Account{dataFromV3})
 	return newData, nil
 }
 
@@ -135,7 +109,7 @@ func addRating(account []*model.Account) []*model.Account {
 		if borrowsLen > 0 && liquidateLen > 0 {
 			if borrowsLen > liquidateLen {
 				rating = (float64(borrowsLen) / float64(liquidateLen)) * 100
-				newRating := strconv.FormatFloat(rating/100*5, 'f', 2, 64)
+				newRating := strconv.FormatFloat(rating/100*5, 'g', -1, 64)
 				if rating/100*5 > 5.0 {
 					acc.Raiting = "5"
 					return account
@@ -144,7 +118,7 @@ func addRating(account []*model.Account) []*model.Account {
 				return account
 			} else if liquidateLen > borrowsLen {
 				rating := float64(borrowsLen) / float64(liquidateLen) * 100
-				newRating := strconv.FormatFloat(math.Max(0.5, (1-rating/100)*5), 'f', 2, 64)
+				newRating := strconv.FormatFloat(math.Max(0.5, (1-rating/100)*5), 'g', -1, 64)
 				acc.Raiting = newRating
 				return account
 			}
@@ -156,6 +130,34 @@ func addRating(account []*model.Account) []*model.Account {
 	}
 
 	return account
+}
+
+func fetchFromV3(where *model.AccountFilter) (*model.Account, error) {
+	message := fmt.Sprintf("{\"query\":\"query MyQuery ($id: Bytes!) {\\r\\n  accounts(where: {id: $id}) {\\r\\n    borrows {\\r\\n      amountUSD\\r\\n    }\\r\\n    liquidations {\\r\\n      amountUSD\\r\\n    }\\r\\n  }\\r\\n}\",\"variables\":{\"id\":\"%v\"}}", *where.ID)
+
+	payload := strings.NewReader(message)
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", GRAPHURI, payload)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Cookie", "__cf_bm=N29JxLLfRWmIoOoW7ZP6k4fshmrNrYkf.hnLRFzNnlU-1714527200-1.0.1.1-KxMFJ6deDWLZwLZT3IudKsIdICFQc0abi1liVUndBoCy.MsVp6f4m5ja_R86.xc__5famndB85LEMkH1BcFN1g")
+
+	res, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println(body)
+		log.Fatal(err)
+	}
+	jsonData, _ := parseJson(body, string(*where.ID))
+	return jsonData, nil
 }
 
 func fetchFromV2(where *model.AccountFilter) (*model.Account, error) {
