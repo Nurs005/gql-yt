@@ -10,7 +10,7 @@ import (
 	"github.com/Nurs005/gql-yt/graph"
 )
 
-const defaultPort = "8080"
+const defaultPort = "8081"
 
 func main() {
 	port := os.Getenv("PORT")
@@ -25,16 +25,11 @@ func main() {
 
 	corsHandler := func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Разрешаем доступ со всех доменов
 			w.Header().Set("Access-Control-Allow-Origin", "*")
-			// Разрешаем принимать куки с запросами CORS
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			// Разрешаем методы запросов
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			// Разрешаем использование определенных заголовков
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
-			// Продолжаем выполнение цепочки обработчиков
 			h.ServeHTTP(w, r)
 		})
 	}

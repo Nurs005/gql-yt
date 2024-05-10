@@ -17,127 +17,128 @@ import (
 const GRAPHURI = "https://gateway-arbitrum.network.thegraph.com/api/cfdf070cf997c79bcae014e7ab2bee7b/subgraphs/id/JCNWRypm7FYwV8fx5HhzZPSFaMxgkPuw4TnR3Gpi81zk"
 const GRAPHV2 = "https://gateway-arbitrum.network.thegraph.com/api/cfdf070cf997c79bcae014e7ab2bee7b/subgraphs/id/C2zniPn45RnLDGzVeGZCx2Sw3GXrbc9gL4ZfL8B8Em2j"
 
-func FetchFromTheGraph(where *model.AccountFilter) ([]*model.Account, error) {
-	dataFromV3, _ := fetchFromV3(where)
-	dataFromV2, _ := fetchFromV2(where)
+func FetchFromTheGraph(id *model.AccountFilter) (response []*model.Account, err error) {
+	dataFromV3, _ := fetchV3(id)
+	dataFromV2, _ := fetchV2(id)
 	dataFromV3.Borrows = append(dataFromV3.Borrows, dataFromV2.Borrows...)
 	dataFromV3.Liquidations = append(dataFromV3.Liquidations, dataFromV2.Liquidations...)
-	newData := addRating([]*model.Account{dataFromV3})
-	return newData, nil
+	newDta := addRating([]*model.Account{dataFromV3})
+	return newDta, nil
 }
 
-func parseJson(data []byte, id string) (*model.Account, error) {
+func parse(d []byte, id string) (*model.Account, error) {
 	var result map[string]interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
+	if err := json.Unmarshal(d, &result); err != nil {
 		log.Fatal(err)
 		return nil, err
 	}
 
-	account := &model.Account{
+	acc := &model.Account{
 		ID:      id,
 		Raiting: "0",
 	}
-	accountsData, ok := result["data"].(map[string]interface{})["accounts"].([]interface{})
+	accsData, ok := result["data"].(map[string]interface{})["accounts"].([]interface{})
 	if !ok {
 		return nil, errors.New("no accounts data")
 	}
 
-	for _, accountData := range accountsData {
-		accountMap := accountData.(map[string]interface{})
-		borrowsData, ok := accountMap["borrows"].([]interface{})
+	for _, accData := range accsData {
+		accMap := accData.(map[string]interface{})
+		brsData, ok := accMap["borrows"].([]interface{})
 		if !ok {
 			fmt.Println("no borrows")
 			continue
 		}
 
-		for _, borrowData := range borrowsData {
-			borrowMap := borrowData.(map[string]interface{})
-			amountUSD, ok := borrowMap["amountUSD"].(string)
+		for _, brData := range brsData {
+			brMap := brData.(map[string]interface{})
+			amUSD, ok := brMap["amountUSD"].(string)
 			if !ok {
 				fmt.Println("no amountUSD in borrows")
 				continue
 			}
-			borrow := &model.Borrow{
-				AmountUsd: amountUSD,
+			br := &model.Borrow{
+				AmountUsd: amUSD,
 			}
-			account.Borrows = append(account.Borrows, borrow)
+			acc.Borrows = append(acc.Borrows, br)
 		}
 
-		liquidationsData, ok := accountMap["liquidations"].([]interface{})
+		liqsData, ok := accMap["liquidations"].([]interface{})
 		if !ok {
 			fmt.Println("no liquidations")
 			continue
 		}
 
-		for _, liquidationData := range liquidationsData {
-			liquidationMap := liquidationData.(map[string]interface{})
-			amountUSD, ok := liquidationMap["amountUSD"].(string)
+		for _, liqData := range liqsData {
+			liqMap := liqData.(map[string]interface{})
+			amUSD, ok := liqMap["amountUSD"].(string)
 			if !ok {
 				fmt.Println("no amountUSD in liquidations")
 				continue
 			}
-			liquidation := &model.Liquidate{
-				AmountUsd: amountUSD,
+			liq := &model.Liquidate{
+				AmountUsd: amUSD,
 			}
-			account.Liquidations = append(account.Liquidations, liquidation)
+			acc.Liquidations = append(acc.Liquidations, liq)
 		}
 	}
 
-	return account, nil
+	return acc, nil
 }
 
-func addRating(account []*model.Account) []*model.Account {
-	for _, acc := range account {
-		borrowsLen := len(acc.Borrows)
-		fmt.Println(borrowsLen)
+func addRating(a []*model.Account) []*model.Account {
+	for _, acc := range a {
+		brLen := len(acc.Borrows)
+		fmt.Println(brLen)
 
-		liquidateLen := len(acc.Liquidations)
-		fmt.Println(liquidateLen)
-		var rating float64 = 0
+		liqLen := len(acc.Liquidations)
+		fmt.Println(liqLen)
+		// переменная рейтинга
+		var ri float64 = 0
 
-		if borrowsLen == 0 {
-			if borrowsLen == 0 {
+		if brLen == 0 {
+			if brLen == 0 {
 				acc.Raiting = "0"
 			}
-			return account
-		} else if liquidateLen == 0 {
-			if liquidateLen == 0 {
+			return a
+		} else if liqLen == 0 {
+			if liqLen == 0 {
 				acc.Raiting = "5"
 			}
-			return account
+			return a
 		}
-		if borrowsLen > 0 && liquidateLen > 0 {
-			if borrowsLen > liquidateLen {
-				rating = (float64(borrowsLen) / float64(liquidateLen)) * 100
-				newRating := strconv.FormatFloat(rating/100*5, 'g', -1, 64)
-				if rating/100*5 > 5.0 {
+		if brLen > 0 && liqLen > 0 {
+			if brLen > liqLen {
+				ri = (float64(brLen) / float64(liqLen)) * 100
+				strRi := strconv.FormatFloat(ri/100*5, 'g', -1, 64)
+				if ri/100*5 > 5.0 {
 					acc.Raiting = "5"
-					return account
+					return a
 				}
-				acc.Raiting = newRating
-				return account
-			} else if liquidateLen > borrowsLen {
-				rating := float64(borrowsLen) / float64(liquidateLen) * 100
-				newRating := strconv.FormatFloat(math.Max(0.5, (1-rating/100)*5), 'g', -1, 64)
-				acc.Raiting = newRating
-				return account
+				acc.Raiting = strRi
+				return a
+			} else if liqLen > brLen {
+				ri = float64(brLen) / float64(liqLen) * 100
+				strRi := strconv.FormatFloat(math.Max(0.5, (1-ri/100)*5), 'g', -1, 64)
+				acc.Raiting = strRi
+				return a
 			}
 		}
-		if borrowsLen == liquidateLen {
+		if brLen == liqLen {
 			acc.Raiting = "2,5"
-			return account
+			return a
 		}
 	}
 
-	return account
+	return a
 }
 
-func fetchFromV3(where *model.AccountFilter) (*model.Account, error) {
-	message := fmt.Sprintf("{\"query\":\"query MyQuery ($id: Bytes!) {\\r\\n  accounts(where: {id: $id}) {\\r\\n    borrows {\\r\\n      amountUSD\\r\\n    }\\r\\n    liquidations {\\r\\n      amountUSD\\r\\n    }\\r\\n  }\\r\\n}\",\"variables\":{\"id\":\"%v\"}}", *where.ID)
+func fetchV3(id *model.AccountFilter) (*model.Account, error) {
+	msg := fmt.Sprintf("{\"query\":\"query MyQuery ($id: Bytes!) {\\r\\n  accounts(where: {id: $id}) {\\r\\n    borrows {\\r\\n      amountUSD\\r\\n    }\\r\\n    liquidations {\\r\\n      amountUSD\\r\\n    }\\r\\n  }\\r\\n}\",\"variables\":{\"id\":\"%v\"}}", *id.ID)
 
-	payload := strings.NewReader(message)
+	r := strings.NewReader(msg)
 	client := &http.Client{}
-	req, err := http.NewRequest("POST", GRAPHURI, payload)
+	req, err := http.NewRequest("POST", GRAPHURI, r)
 
 	if err != nil {
 		log.Fatal(err)
@@ -151,23 +152,21 @@ func fetchFromV3(where *model.AccountFilter) (*model.Account, error) {
 	}
 	defer res.Body.Close()
 
-	body, err := io.ReadAll(res.Body)
+	bdy, err := io.ReadAll(res.Body)
 	if err != nil {
-		fmt.Println(body)
+		fmt.Println(bdy)
 		log.Fatal(err)
 	}
-	jsonData, _ := parseJson(body, string(*where.ID))
-	return jsonData, nil
+	jsnDta, _ := parse(bdy, string(*id.ID))
+	return jsnDta, nil
 }
 
-func fetchFromV2(where *model.AccountFilter) (*model.Account, error) {
+func fetchV2(id *model.AccountFilter) (*model.Account, error) {
 	url := GRAPHV2
-	method := "POST"
-	message := fmt.Sprintf("{\"query\":\"query MyQuery ($id: Bytes!) {\\r\\n  accounts(where: {id: $id}) {\\r\\n    borrows {\\r\\n      amountUSD\\r\\n    }\\r\\n    liquidations {\\r\\n      amountUSD\\r\\n    }\\r\\n  }\\r\\n}\",\"variables\":{\"id\":\"%v\"}}", *where.ID)
-
-	payload := strings.NewReader(message)
+	message := fmt.Sprintf("{\"query\":\"query MyQuery ($id: Bytes!) {\\r\\n  accounts(where: {id: $id}) {\\r\\n    borrows {\\r\\n      amountUSD\\r\\n    }\\r\\n    liquidations {\\r\\n      amountUSD\\r\\n    }\\r\\n  }\\r\\n}\",\"variables\":{\"id\":\"%v\"}}", *id.ID)
 	client := &http.Client{}
-	req, err := http.NewRequest(method, url, payload)
+	r := strings.NewReader(message)
+	req, err := http.NewRequest("POST", url, r)
 
 	if err != nil {
 		log.Fatal(err)
@@ -181,12 +180,12 @@ func fetchFromV2(where *model.AccountFilter) (*model.Account, error) {
 	}
 	defer res.Body.Close()
 
-	body, err := io.ReadAll(res.Body)
+	bdy, err := io.ReadAll(res.Body)
 	if err != nil {
-		fmt.Println(body)
+		fmt.Println(bdy)
 		log.Fatal(err)
 	}
 
-	jsonData, _ := parseJson(body, string(*where.ID))
-	return jsonData, nil
+	jsnDta, _ := parse(bdy, string(*id.ID))
+	return jsnDta, nil
 }
