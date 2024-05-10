@@ -5,12 +5,14 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/Nurs005/gql-yt/graph"
+	"github.com/Nurs005/gql-yt/handlers"
+	"github.com/gin-gonic/gin"
+	// "github.com/99designs/gqlgen/graphql/handler"
+	// "github.com/99designs/gqlgen/graphql/playground"
+	// "github.com/Nurs005/gql-yt/graph"
 )
 
-const defaultPort = "8081"
+const defaultPort = ":8081"
 
 func main() {
 	port := os.Getenv("PORT")
@@ -18,10 +20,15 @@ func main() {
 		port = defaultPort
 	}
 
-	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{}}))
+	r := gin.Default()
 
-	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv)
+	r.GET("/", handlers.PlaygroundHandler())
+	r.POST("/query", handlers.GraphQLHandler())
+
+	// srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{}}))
+
+	// http.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	// http.Handle("/query", srv)
 
 	corsHandler := func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -35,5 +42,5 @@ func main() {
 	}
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe(":"+port, corsHandler(http.DefaultServeMux)))
+	log.Fatal(http.ListenAndServe(port, corsHandler(r)))
 }
