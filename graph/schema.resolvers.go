@@ -12,7 +12,7 @@ import (
 )
 
 // Accounts is the resolver for the accounts field.
-func (r *queryResolver) Accounts(ctx context.Context, where *model.AccountFilter) ([]*model.Account, error) {
+func (r *queryResolver) Accounts(ctx context.Context, where *model.AccountFilter) (*model.Account, error) {
 	val, err := thegraph.FetchFromTheGraph(where)
 	if err != nil {
 		return nil, err

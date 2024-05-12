@@ -63,5 +63,5 @@ input Account_Filter {
 }
 
 type Query{
-  accounts(where: Account_Filter): [Account!]
+  accounts(where: Account_Filter): Account!
 }
