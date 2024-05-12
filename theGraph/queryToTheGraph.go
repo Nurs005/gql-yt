@@ -16,9 +16,9 @@ import (
 )
 
 var URLS = []string{"https://gateway-arbitrum.network.thegraph.com/api/cfdf070cf997c79bcae014e7ab2bee7b/subgraphs/id/JCNWRypm7FYwV8fx5HhzZPSFaMxgkPuw4TnR3Gpi81zk", "https://gateway-arbitrum.network.thegraph.com/api/cfdf070cf997c79bcae014e7ab2bee7b/subgraphs/id/C2zniPn45RnLDGzVeGZCx2Sw3GXrbc9gL4ZfL8B8Em2j"}
-var wg sync.WaitGroup
 
 func FetchFromTheGraph(id *model.AccountFilter) (response *model.Account, err error) {
+	var wg sync.WaitGroup
 	dataFrom := model.Account{
 		ID:      *id.ID,
 		Raiting: "0",
@@ -68,6 +68,7 @@ func fetchV3(id string, url string) (*model.Account, error) {
 }
 
 func parse(d []byte, id string) (*model.Account, error) {
+	var wg sync.WaitGroup
 	var result map[string]interface{}
 	if err := json.Unmarshal(d, &result); err != nil {
 		log.Fatal(err)
@@ -78,6 +79,7 @@ func parse(d []byte, id string) (*model.Account, error) {
 		ID:      id,
 		Raiting: "0",
 	}
+
 	accsData, ok := result["data"].(map[string]interface{})["accounts"].([]interface{})
 	if !ok {
 		return nil, errors.New("no accounts data")
@@ -100,33 +102,40 @@ func parse(d []byte, id string) (*model.Account, error) {
 		}
 
 	}
+	wg.Add(1)
+	go func(brsDta []interface{}) {
+		defer wg.Done()
+		for _, brData := range brsDta {
+			brMap := brData.(map[string]interface{})
+			amUSD, ok := brMap["amountUSD"].(string)
+			if !ok {
+				fmt.Println("no amountUSD in borrows")
+				continue
+			}
+			br := &model.Borrow{
+				AmountUsd: amUSD,
+			}
+			acc.Borrows = append(acc.Borrows, br)
+		}
+	}(brsData)
 
-	for _, brData := range brsData {
-		brMap := brData.(map[string]interface{})
-		amUSD, ok := brMap["amountUSD"].(string)
-		if !ok {
-			fmt.Println("no amountUSD in borrows")
-			continue
+	wg.Add(1)
+	go func(liqsDta []interface{}) {
+		defer wg.Done()
+		for _, liqData := range liqsDta {
+			liqMap := liqData.(map[string]interface{})
+			amUSD, ok := liqMap["amountUSD"].(string)
+			if !ok {
+				fmt.Println("no amountUSD in liquidations")
+				continue
+			}
+			liq := &model.Liquidate{
+				AmountUsd: amUSD,
+			}
+			acc.Liquidations = append(acc.Liquidations, liq)
 		}
-		br := &model.Borrow{
-			AmountUsd: amUSD,
-		}
-		acc.Borrows = append(acc.Borrows, br)
-	}
-
-	for _, liqData := range liqsData {
-		liqMap := liqData.(map[string]interface{})
-		amUSD, ok := liqMap["amountUSD"].(string)
-		if !ok {
-			fmt.Println("no amountUSD in liquidations")
-			continue
-		}
-		liq := &model.Liquidate{
-			AmountUsd: amUSD,
-		}
-		acc.Liquidations = append(acc.Liquidations, liq)
-	}
-
+	}(liqsData)
+	wg.Wait()
 	return acc, nil
 }
 
@@ -160,7 +169,7 @@ func addRating(a *model.Account) {
 		return
 	}
 	if brLen == liqLen {
-		a.Raiting = "2,5"
+		a.Raiting = "1.25"
 		return
 	}
 }
